@@ -33,20 +33,6 @@ ALTER TABLE ambient_readings ADD COLUMN IF NOT EXISTS source TEXT NOT NULL DEFAU
 
 CREATE INDEX IF NOT EXISTS idx_breach_events_ts ON breach_events (ts);
 CREATE INDEX IF NOT EXISTS idx_ambient_readings_ts ON ambient_readings (ts);
-
--- Single-row table: the shared threshold config devices sync to when
--- "Peer mode" is on. Calibration and clips stay per-device on purpose —
--- they're tied to that mic's physical position, not the room as a whole.
-CREATE TABLE IF NOT EXISTS shared_settings (
-  id INT PRIMARY KEY DEFAULT 1,
-  threshold NUMERIC NOT NULL DEFAULT 65,
-  sustain NUMERIC NOT NULL DEFAULT 3,
-  low_threshold NUMERIC NOT NULL DEFAULT 40,
-  low_sustain NUMERIC NOT NULL DEFAULT 5,
-  response TEXT NOT NULL DEFAULT 'fast',
-  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
-);
-INSERT INTO shared_settings (id) VALUES (1) ON CONFLICT (id) DO NOTHING;
 `;
 
 async function init() {

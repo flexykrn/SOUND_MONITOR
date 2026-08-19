@@ -8,7 +8,8 @@
   const ctx = canvas.getContext('2d');
   const logoutBtn = document.getElementById('logoutBtn');
   const deviceNameEl = document.getElementById('deviceName');
-  const peerModeBtn = document.getElementById('peerModeBtn');
+  const themeToggleBtn = document.getElementById('themeToggle');
+  const moodEmojiEl = document.getElementById('moodEmoji');
 
   const DEVICE_NAME_KEY = 'noiseMonitorDeviceName';
   deviceNameEl.value = localStorage.getItem(DEVICE_NAME_KEY) || '';
@@ -18,6 +19,21 @@
   function currentDeviceName() {
     return deviceNameEl.value.trim() || 'Unnamed device';
   }
+
+  const THEME_KEY = 'noiseMonitorTheme';
+  function applyTheme(theme) {
+    document.documentElement.dataset.theme = theme;
+    themeToggleBtn.textContent = theme === 'dark' ? '☀️' : '🌙';
+  }
+  const savedTheme = localStorage.getItem(THEME_KEY) ||
+    (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+  applyTheme(savedTheme);
+  themeToggleBtn.addEventListener('click', () => {
+    const next = document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark';
+    localStorage.setItem(THEME_KEY, next);
+    applyTheme(next);
+  });
+
   const needleEl = document.getElementById('needle');
   const lowMarkerEl = document.getElementById('lowMarker');
   const highMarkerEl = document.getElementById('highMarker');
@@ -48,6 +64,14 @@
   const clipStatusEl = document.getElementById('clipStatus');
   const testClipHighBtn = document.getElementById('testClipHigh');
   const testSpeakerBtn = document.getElementById('testSpeaker');
+  const alertVolumeEl = document.getElementById('alertVolume');
+  const volumeReadoutEl = document.getElementById('volumeReadout');
+  const snooze15Btn = document.getElementById('snooze15');
+  const snooze60Btn = document.getElementById('snooze60');
+  const snoozeCancelBtn = document.getElementById('snoozeCancel');
+  const snoozeStatusEl = document.getElementById('snoozeStatus');
+  const lastAlertTimeEl = document.getElementById('lastAlertTime');
+  const lastAlertDetailEl = document.getElementById('lastAlertDetail');
 
   const lowThresholdEl = document.getElementById('lowThreshold');
   const lowThresholdSliderEl = document.getElementById('lowThresholdSlider');
@@ -91,9 +115,6 @@
     positionMarkers();
     calibrationReadoutEl.textContent = settings.calibration;
 
-    setPeerModeButton();
-    if (peerMode) { pullSharedSettings(true); startPeerPolling(); }
-
     const savedHigh = localStorage.getItem(CLIP_HIGH_KEY);
     if (savedHigh) {
       clipStatusEl.textContent = 'Custom clip loaded.';
@@ -115,7 +136,6 @@
     localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
     positionMarkers();
     calibrationReadoutEl.textContent = settings.calibration;
-    if (peerMode) pushSharedSettings();
   }
 
   function positionMarkers() {
@@ -123,90 +143,6 @@
     lowMarkerEl.style.left = pct(settings.lowThreshold) + '%';
     highMarkerEl.style.left = pct(settings.threshold) + '%';
   }
-
-  // --- Peer mode: sync threshold/sustain/response across every device in
-  // the room via the server. Calibration and clips stay per-device — they
-  // depend on that mic's physical position, not the room as a whole.
-  const PEER_MODE_KEY = 'noiseMonitorPeerMode';
-  let peerMode = localStorage.getItem(PEER_MODE_KEY) === '1';
-  let peerPollTimer = null;
-  let lastRemoteUpdatedAt = null;
-
-  function setPeerModeButton() {
-    peerModeBtn.textContent = 'Peer Mode: ' + (peerMode ? 'On' : 'Off');
-    peerModeBtn.classList.toggle('toggle-off', !peerMode);
-  }
-
-  function applyRemoteToFields(row) {
-    settings.threshold = Number(row.threshold);
-    settings.sustain = Number(row.sustain);
-    settings.lowThreshold = Number(row.low_threshold);
-    settings.lowSustain = Number(row.low_sustain);
-    settings.response = row.response === 'slow' ? 'slow' : 'fast';
-    thresholdEl.value = settings.threshold; thresholdSliderEl.value = settings.threshold;
-    sustainEl.value = settings.sustain;
-    lowThresholdEl.value = settings.lowThreshold; lowThresholdSliderEl.value = settings.lowThreshold;
-    lowSustainEl.value = settings.lowSustain;
-    setResponseButtons();
-    positionMarkers();
-    localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
-  }
-
-  function pullSharedSettings(applyToUI) {
-    return fetch('/api/settings/shared')
-      .then(r => r.json())
-      .then(row => {
-        if (!row) return;
-        lastRemoteUpdatedAt = row.updated_at;
-        if (applyToUI) applyRemoteToFields(row);
-      })
-      .catch(() => {});
-  }
-
-  function pushSharedSettings() {
-    fetch('/api/settings/shared', {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        threshold: settings.threshold,
-        sustain: settings.sustain,
-        lowThreshold: settings.lowThreshold,
-        lowSustain: settings.lowSustain,
-        response: settings.response,
-      }),
-    }).then(r => r.json()).then(row => { if (row) lastRemoteUpdatedAt = row.updated_at; }).catch(() => {});
-  }
-
-  const THRESHOLD_INPUTS = [thresholdEl, thresholdSliderEl, sustainEl, lowThresholdEl, lowThresholdSliderEl, lowSustainEl];
-
-  function startPeerPolling() {
-    if (peerPollTimer) return;
-    peerPollTimer = setInterval(() => {
-      if (!peerMode || THRESHOLD_INPUTS.includes(document.activeElement)) return;
-      fetch('/api/settings/shared').then(r => r.json()).then(row => {
-        if (row && row.updated_at !== lastRemoteUpdatedAt) {
-          lastRemoteUpdatedAt = row.updated_at;
-          applyRemoteToFields(row);
-        }
-      }).catch(() => {});
-    }, 5000);
-  }
-
-  function stopPeerPolling() {
-    clearInterval(peerPollTimer);
-    peerPollTimer = null;
-  }
-
-  peerModeBtn.addEventListener('click', () => {
-    peerMode = !peerMode;
-    localStorage.setItem(PEER_MODE_KEY, peerMode ? '1' : '0');
-    setPeerModeButton();
-    if (peerMode) {
-      pullSharedSettings(true).then(startPeerPolling);
-    } else {
-      stopPeerPolling();
-    }
-  });
 
   // Number <-> slider two-way sync, auto-saving on every change.
   function linkPair(numberEl, sliderEl) {
@@ -333,10 +269,44 @@
   testClipLowBtn.addEventListener('click', () => playAlert('low'));
   testSpeakerBtn.addEventListener('click', () => { ensureBeepContext(); playMelody(TONES.test); });
 
+  // --- Volume ---
+  const VOLUME_KEY = 'noiseMonitorVolume';
+  let alertVolume = 1;
+  const savedVolume = localStorage.getItem(VOLUME_KEY);
+  if (savedVolume !== null) {
+    alertVolume = Number(savedVolume) / 100;
+    alertVolumeEl.value = savedVolume;
+  }
+  volumeReadoutEl.textContent = alertVolumeEl.value + '%';
+  alertVolumeEl.addEventListener('input', () => {
+    alertVolume = Number(alertVolumeEl.value) / 100;
+    volumeReadoutEl.textContent = alertVolumeEl.value + '%';
+    localStorage.setItem(VOLUME_KEY, alertVolumeEl.value);
+  });
+
+  // --- Snooze: mutes the sound only. Breaches still get logged normally —
+  // this is for "I know it's loud right now, stop dinging me" not for
+  // pausing the record.
+  let snoozeUntil = 0;
+  function updateSnoozeStatus() {
+    if (Date.now() < snoozeUntil) {
+      const mins = Math.ceil((snoozeUntil - Date.now()) / 60000);
+      snoozeStatusEl.textContent = `Snoozed for ${mins} more min — alerts stay muted but keep logging.`;
+    } else {
+      snoozeStatusEl.textContent = 'Not snoozed — alerts play normally.';
+    }
+  }
+  snooze15Btn.addEventListener('click', () => { snoozeUntil = Date.now() + 15 * 60000; updateSnoozeStatus(); });
+  snooze60Btn.addEventListener('click', () => { snoozeUntil = Date.now() + 60 * 60000; updateSnoozeStatus(); });
+  snoozeCancelBtn.addEventListener('click', () => { snoozeUntil = 0; updateSnoozeStatus(); });
+  updateSnoozeStatus();
+
   function playAlert(kind) {
+    if (Date.now() < snoozeUntil) return;
     const audio = kind === 'low' ? lowAlertAudio : highAlertAudio;
     if (audio) {
       audio.currentTime = 0;
+      audio.volume = alertVolume;
       audio.play().catch(() => { playMelody(TONES[kind]); });
     } else {
       playMelody(TONES[kind]);
@@ -377,8 +347,9 @@
       osc.frequency.value = note.freq;
       osc.connect(gain);
       gain.connect(ac.destination);
+      const peak = Math.max(0.001, 0.25 * alertVolume);
       gain.gain.setValueAtTime(0.001, t);
-      gain.gain.exponentialRampToValueAtTime(0.25, t + 0.02);
+      gain.gain.exponentialRampToValueAtTime(peak, t + 0.02);
       gain.gain.exponentialRampToValueAtTime(0.001, t + note.dur);
       osc.start(t);
       osc.stop(t + note.dur + 0.02);
@@ -694,6 +665,10 @@
       displayDb <= settings.lowThreshold ? 'warn' :
       displayDb >= settings.threshold - 5 ? 'warn' : 'ok'
     );
+    moodEmojiEl.textContent =
+      displayDb >= settings.threshold ? '🤯' :
+      displayDb >= settings.threshold - 5 ? '😬' :
+      displayDb <= settings.lowThreshold ? '🤫' : '😌';
 
     const pct = Math.max(0, Math.min(100, ((displayDb - METER_MIN) / (METER_MAX - METER_MIN)) * 100));
     needleEl.style.left = pct + '%';
@@ -711,6 +686,7 @@
   }
 
   function updateSessionTimer() {
+    updateSnoozeStatus();
     if (!sessionStartMs) return;
     const secs = Math.floor((Date.now() - sessionStartMs) / 1000);
     const m = String(Math.floor(secs / 60)).padStart(2, '0');
@@ -792,6 +768,9 @@
     addToFeed(payload);
     if (type === 'high') highCountTodayEl.textContent = Number(highCountTodayEl.textContent) + 1;
     else lowCountTodayEl.textContent = Number(lowCountTodayEl.textContent) + 1;
+
+    lastAlertTimeEl.textContent = new Date(payload.timestamp).toLocaleTimeString();
+    lastAlertDetailEl.textContent = `${type === 'low' ? 'Quiet' : 'Loud'} · ${payload.peakDb} dB · ${payload.duration}s`;
   }
 
   function addToFeed(payload) {

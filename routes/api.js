@@ -104,36 +104,6 @@ router.get('/logs/ambient', requireAuth, async (req, res) => {
   }
 });
 
-// --- Shared settings for "Peer mode" (requires auth) ---
-router.get('/settings/shared', requireAuth, async (req, res) => {
-  try {
-    const result = await pool.query('SELECT threshold, sustain, low_threshold, low_sustain, response, updated_at FROM shared_settings WHERE id = 1');
-    res.json(result.rows[0]);
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'query failed' });
-  }
-});
-
-router.put('/settings/shared', requireAuth, async (req, res) => {
-  const { threshold, sustain, lowThreshold, lowSustain, response } = req.body || {};
-  if ([threshold, sustain, lowThreshold, lowSustain].some(v => typeof v !== 'number' || isNaN(v))) {
-    return res.status(400).json({ error: 'threshold, sustain, lowThreshold, lowSustain must be numbers' });
-  }
-  const responseMode = response === 'slow' ? 'slow' : 'fast';
-  try {
-    const result = await pool.query(
-      `UPDATE shared_settings SET threshold = $1, sustain = $2, low_threshold = $3, low_sustain = $4, response = $5, updated_at = now()
-       WHERE id = 1 RETURNING threshold, sustain, low_threshold, low_sustain, response, updated_at`,
-      [threshold, sustain, lowThreshold, lowSustain, responseMode]
-    );
-    res.json(result.rows[0]);
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'update failed' });
-  }
-});
-
 // --- CSV export (requires auth) ---
 router.get('/export/csv', requireAuth, async (req, res) => {
   const { start, end, type } = req.query;

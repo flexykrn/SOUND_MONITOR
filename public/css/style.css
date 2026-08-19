@@ -22,7 +22,7 @@
 }
 
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-theme="light"]) {
     --bg: #14131a;
     --panel: #1d1c26;
     --ink: #f4f2fb;
@@ -35,6 +35,32 @@
     --shadow: 5px 5px 0 var(--ink);
     --shadow-sm: 3px 3px 0 var(--ink);
   }
+}
+
+/* Manual override via the theme toggle button, wins over OS preference. */
+:root[data-theme="dark"] {
+  --bg: #14131a;
+  --panel: #1d1c26;
+  --ink: #f4f2fb;
+  --ink-soft: #a6a3b8;
+  --border: #f4f2fb;
+  --violet-soft: #2a2340;
+  --lime-soft: #1f2a17;
+  --coral-soft: #331c1f;
+  --sky-soft: #16262e;
+  --shadow: 5px 5px 0 var(--ink);
+  --shadow-sm: 3px 3px 0 var(--ink);
+}
+:root[data-theme="light"] {
+  --bg: #eee9df;
+  --panel: #fffdf8;
+  --ink: #16161a;
+  --ink-soft: #5c5a52;
+  --border: #16161a;
+  --violet-soft: #ece7ff;
+  --lime-soft: #f0fcdc;
+  --coral-soft: #ffe4e4;
+  --sky-soft: #dff6ff;
 }
 
 body {
@@ -103,6 +129,9 @@ a { color: var(--ink); }
 .card.accent-sky { background: var(--sky-soft); }
 
 .hero { text-align: center; padding: 30px 20px; }
+.mood { font-size: 40px; line-height: 1; margin-bottom: -8px; }
+.btn-row { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; }
+.btn-row button { flex: 1; min-width: 160px; margin-top: 14px; }
 .db-reading {
   font-size: 100px;
   font-weight: 900;

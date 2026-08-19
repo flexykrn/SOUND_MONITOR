@@ -10,8 +10,8 @@
 <div class="top-nav">
   <h1>Noise<br>Monitor</h1>
   <div class="actions">
-    <input type="text" id="deviceName" placeholder="Device name (e.g. Reception)" style="width:200px;">
-    <button class="pill toggle-off secondary" id="peerModeBtn" type="button" title="When on, the loud/quiet thresholds below sync across every device in the room">Peer Mode: Off</button>
+    <input type="text" id="deviceName" placeholder="Device name (e.g. Reception)" style="width:180px;">
+    <button class="pill secondary" id="themeToggle" type="button" title="Switch light/dark theme">🌙</button>
     <span id="status" class="status inactive"><span class="dot"></span><span id="statusText">Off</span></span>
     <a href="/dashboard.html"><button class="secondary" type="button">History</button></a>
     <button class="secondary" id="logoutBtn" type="button">Log out</button>
@@ -21,15 +21,18 @@
 <div id="permissionCard" class="card hero accent-violet">
   <h2 style="justify-content:center;">Turn on monitoring</h2>
   <p style="color:var(--ink-soft);font-weight:500;">Listens to the mic in this tab. Nothing is recorded — only a live noise number is used.</p>
-  <button id="startBtn" class="accent block">Start Monitoring</button>
-  <button id="testSpeaker" class="secondary block" type="button">🔊 Test Speaker</button>
-  <p class="hint">Tap this first on phones/tablets — it confirms sound works and unlocks alert playback for later.</p>
+  <div class="btn-row">
+    <button id="startBtn" class="accent">▶ Start Monitoring</button>
+    <button id="testSpeaker" class="secondary" type="button">🔊 Test Speaker</button>
+  </div>
+  <p class="hint">On phones/tablets, tap Test Speaker first — it confirms sound works and unlocks alert playback for later.</p>
   <div class="error" id="permErr" style="display:none;"></div>
 </div>
 
 <div class="layout">
   <div class="stack">
     <div class="card hero">
+      <div class="mood" id="moodEmoji">😌</div>
       <div class="db-reading ok" id="dbReading">--</div>
       <div class="db-unit">dB right now</div>
 
@@ -123,6 +126,35 @@
         <button id="quickCalibrate" class="secondary">Match to meter</button>
       </div>
     </details>
+  </div>
+</div>
+
+<div class="layout">
+  <div class="stack">
+    <div class="card accent-violet">
+      <h2>🔈 Sound & Alerts</h2>
+      <label for="alertVolume">Alert volume</label>
+      <input type="range" id="alertVolume" min="0" max="100" step="5" value="100">
+      <div class="hint" id="volumeReadout">100%</div>
+
+      <label style="margin-top:16px;">Snooze alerts</label>
+      <div class="btn-row">
+        <button id="snooze15" class="secondary pill" type="button">15 min</button>
+        <button id="snooze60" class="secondary pill" type="button">1 hour</button>
+        <button id="snoozeCancel" class="secondary pill" type="button">Cancel</button>
+      </div>
+      <div class="hint" id="snoozeStatus">Not snoozed — alerts play normally.</div>
+    </div>
+  </div>
+
+  <div class="stack">
+    <div class="card">
+      <h2>⏱️ Last Alert</h2>
+      <div class="stat-box" style="text-align:center;">
+        <div class="num" id="lastAlertTime">—</div>
+        <div class="lbl" id="lastAlertDetail">No alerts yet this session</div>
+      </div>
+    </div>
   </div>
 </div>
 
