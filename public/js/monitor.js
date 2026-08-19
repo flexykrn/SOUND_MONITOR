@@ -47,6 +47,7 @@
   const clipFileEl = document.getElementById('clipFile');
   const clipStatusEl = document.getElementById('clipStatus');
   const testClipHighBtn = document.getElementById('testClipHigh');
+  const testSpeakerBtn = document.getElementById('testSpeaker');
 
   const lowThresholdEl = document.getElementById('lowThreshold');
   const lowThresholdSliderEl = document.getElementById('lowThresholdSlider');
@@ -290,6 +291,20 @@
   let highAlertAudio = null;
   let lowAlertAudio = null;
 
+  // Mobile browsers only allow audio to play if it was unlocked by a
+  // direct tap earlier in the page's life — an alert that fires on its
+  // own later (not from a click) gets silently blocked otherwise. Warming
+  // up every audio element/context once, right inside the Start button's
+  // click handler, unlocks them all for the rest of the session.
+  function unlockAudioForAutoplay() {
+    [highAlertAudio, lowAlertAudio].forEach(audio => {
+      if (!audio) return;
+      const prevVolume = audio.volume;
+      audio.volume = 0;
+      audio.play().then(() => { audio.pause(); audio.currentTime = 0; audio.volume = prevVolume; }).catch(() => { audio.volume = prevVolume; });
+    });
+  }
+
   clipFileEl.addEventListener('change', () => {
     const file = clipFileEl.files[0];
     if (!file) return;
@@ -316,27 +331,59 @@
 
   testClipHighBtn.addEventListener('click', () => playAlert('high'));
   testClipLowBtn.addEventListener('click', () => playAlert('low'));
+  testSpeakerBtn.addEventListener('click', () => { ensureBeepContext(); playMelody(TONES.test); });
 
   function playAlert(kind) {
     const audio = kind === 'low' ? lowAlertAudio : highAlertAudio;
     if (audio) {
       audio.currentTime = 0;
-      audio.play().catch(() => {});
+      audio.play().catch(() => { playMelody(TONES[kind]); });
     } else {
-      beep(kind === 'low' ? 330 : 880);
+      playMelody(TONES[kind]);
     }
   }
 
-  function beep(freq) {
-    const ac = new (window.AudioContext || window.webkitAudioContext)();
-    const osc = ac.createOscillator();
-    const gain = ac.createGain();
-    osc.frequency.value = freq;
-    osc.connect(gain);
-    gain.connect(ac.destination);
-    gain.gain.setValueAtTime(0.2, ac.currentTime);
-    osc.start();
-    osc.stop(ac.currentTime + 0.4);
+  // Playful built-in fallback tones (used when no custom clip is set, or
+  // if the clip fails to play). A short ascending chime for loud alerts,
+  // a gentle descending one for quiet alerts, and a cheerful blip for the
+  // speaker test — friendlier than a single flat beep, and each doubles
+  // as an audio-unlock action when triggered by a real click.
+  const TONES = {
+    high: [{ freq: 660, dur: 0.12 }, { freq: 880, dur: 0.12 }, { freq: 1100, dur: 0.22 }],
+    low: [{ freq: 520, dur: 0.16 }, { freq: 390, dur: 0.16 }, { freq: 300, dur: 0.28 }],
+    test: [{ freq: 523, dur: 0.1 }, { freq: 659, dur: 0.1 }, { freq: 784, dur: 0.1 }, { freq: 1047, dur: 0.2 }],
+  };
+
+  // One shared, reused AudioContext for all synthesized tones — created
+  // fresh only if the mic capture context isn't up yet (e.g. testing the
+  // speaker before hitting Start). Reusing rather than "new AudioContext()
+  // per beep" is what actually makes autoplay work later on mobile: a
+  // context created outside a user gesture is the thing that gets blocked.
+  let beepCtx = null;
+  function ensureBeepContext() {
+    if (audioCtx && audioCtx.state !== 'closed') { beepCtx = audioCtx; return beepCtx; }
+    if (!beepCtx || beepCtx.state === 'closed') beepCtx = new (window.AudioContext || window.webkitAudioContext)();
+    if (beepCtx.state === 'suspended') beepCtx.resume().catch(() => {});
+    return beepCtx;
+  }
+
+  function playMelody(notes) {
+    const ac = ensureBeepContext();
+    let t = ac.currentTime;
+    notes.forEach(note => {
+      const osc = ac.createOscillator();
+      const gain = ac.createGain();
+      osc.type = 'sine';
+      osc.frequency.value = note.freq;
+      osc.connect(gain);
+      gain.connect(ac.destination);
+      gain.gain.setValueAtTime(0.001, t);
+      gain.gain.exponentialRampToValueAtTime(0.25, t + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.001, t + note.dur);
+      osc.start(t);
+      osc.stop(t + note.dur + 0.02);
+      t += note.dur;
+    });
   }
 
   // --- Rolling chart (last 60 seconds) ---
@@ -479,9 +526,13 @@
   let micRetryTimer = null;
   let micRetryAttempt = 0;
 
+  let currentMediaStream = null;
+
   function handleMicDisconnected() {
     monitoring = false;
     clearInterval(samplerInterval);
+    if (currentMediaStream) currentMediaStream.getTracks().forEach(t => t.stop());
+    currentMediaStream = null;
     statusEl.classList.remove('active');
     statusEl.classList.add('inactive');
     statusTextEl.textContent = 'Mic disconnected — reconnecting...';
@@ -493,11 +544,21 @@
   async function startMonitoring() {
     clearTimeout(micRetryTimer);
     clearInterval(samplerInterval);
+    unlockAudioForAutoplay();
+
     let mediaStream;
     try {
-      mediaStream = await navigator.mediaDevices.getUserMedia({
-        audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false },
-      });
+      // Some mobile browsers (notably older Android WebViews) throw
+      // OverconstrainedError on the exact:false-style constraints below
+      // rather than just ignoring them — fall back to a bare request so
+      // the mic still works there, even without the extra stability.
+      try {
+        mediaStream = await navigator.mediaDevices.getUserMedia({
+          audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false },
+        });
+      } catch (constraintErr) {
+        mediaStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      }
     } catch (err) {
       permErrEl.textContent = 'Microphone permission denied or unavailable: ' + err.message;
       permErrEl.style.display = 'block';
@@ -506,12 +567,23 @@
     permErrEl.style.display = 'none';
     micRetryAttempt = 0;
 
+    currentMediaStream = mediaStream;
     mediaStream.getAudioTracks().forEach(track => {
       track.addEventListener('ended', handleMicDisconnected);
     });
     requestWakeLock();
 
-    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    if (!audioCtx || audioCtx.state === 'closed') {
+      audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    }
+    // iOS/Safari and some Android browsers create contexts in a
+    // "suspended" state even after a user gesture, and can re-suspend one
+    // mid-session (phone call, another app grabbing audio focus). Resume
+    // immediately, and again automatically whenever that happens.
+    audioCtx.resume().catch(() => {});
+    audioCtx.addEventListener('statechange', () => {
+      if (monitoring && audioCtx.state === 'suspended') audioCtx.resume().catch(() => {});
+    });
     const source = audioCtx.createMediaStreamSource(mediaStream);
 
     // Band-pass to the range office noise complaints are actually about
@@ -582,9 +654,26 @@
     return Math.max(0, Math.min(140, approxDb));
   }
 
+  // Real audio always has some noise-floor jitter — a bit-identical raw
+  // reading held for 3s straight means the stream silently died (common
+  // on mobile when the screen locks or another app grabs the mic) rather
+  // than the room actually going perfectly, unnaturally still.
+  let stallValue = null;
+  let stallCount = 0;
+  const STALL_SAMPLES = 30;
+
   function sampleAndUpdate() {
     if (!monitoring) return;
     const rawDb = computeRawDb();
+
+    if (rawDb === stallValue) {
+      stallCount++;
+      if (stallCount >= STALL_SAMPLES) { stallCount = 0; handleMicDisconnected(); return; }
+    } else {
+      stallValue = rawDb;
+      stallCount = 0;
+    }
+
     lastRawDb = rawDb;
     fastDb = fastDb === null ? rawDb : fastDb + FAST_ALPHA * (rawDb - fastDb);
     slowDb = slowDb === null ? rawDb : slowDb + SLOW_ALPHA * (rawDb - slowDb);
