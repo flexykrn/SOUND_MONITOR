@@ -63,7 +63,11 @@
   const clipFileEl = document.getElementById('clipFile');
   const clipStatusEl = document.getElementById('clipStatus');
   const testClipHighBtn = document.getElementById('testClipHigh');
-  const testSpeakerBtn = document.getElementById('testSpeaker');
+  const chartTooltipEl = document.getElementById('chartTooltip');
+  const todayCanvas = document.getElementById('todayChart');
+  const todayCtx = todayCanvas.getContext('2d');
+  const refreshTimelineBtn = document.getElementById('refreshTimeline');
+  const todayChartHintEl = document.getElementById('todayChartHint');
   const alertVolumeEl = document.getElementById('alertVolume');
   const volumeReadoutEl = document.getElementById('volumeReadout');
   const snooze15Btn = document.getElementById('snooze15');
@@ -271,7 +275,6 @@
 
   testClipHighBtn.addEventListener('click', () => playAlert('high'));
   testClipLowBtn.addEventListener('click', () => playAlert('low'));
-  testSpeakerBtn.addEventListener('click', () => { ensureBeepContext(); playMelody(TONES.test); });
 
   // --- Volume ---
   const VOLUME_KEY = 'noiseMonitorVolume';
@@ -325,7 +328,6 @@
   const TONES = {
     high: [{ freq: 660, dur: 0.12 }, { freq: 880, dur: 0.12 }, { freq: 1100, dur: 0.22 }],
     low: [{ freq: 520, dur: 0.16 }, { freq: 390, dur: 0.16 }, { freq: 300, dur: 0.28 }],
-    test: [{ freq: 523, dur: 0.1 }, { freq: 659, dur: 0.1 }, { freq: 784, dur: 0.1 }, { freq: 1047, dur: 0.2 }],
   };
 
   // One shared, reused AudioContext for all synthesized tones — created
@@ -368,9 +370,74 @@
   function resizeCanvas() {
     canvas.width = canvas.clientWidth * devicePixelRatio;
     canvas.height = canvas.clientHeight * devicePixelRatio;
+    todayCanvas.width = todayCanvas.clientWidth * devicePixelRatio;
+    todayCanvas.height = todayCanvas.clientHeight * devicePixelRatio;
   }
   window.addEventListener('resize', resizeCanvas);
   resizeCanvas();
+
+  // --- Chart hover tooltip: shows the exact dB + time under the cursor. ---
+  canvas.addEventListener('mousemove', (e) => {
+    if (history.length < 2) return;
+    const rect = canvas.getBoundingClientRect();
+    const xFrac = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+    const now = performance.now();
+    const age = (1 - xFrac) * HISTORY_SECONDS;
+    const targetT = now - age * 1000;
+    let closest = history[0];
+    for (const pt of history) {
+      if (Math.abs(pt.t - targetT) < Math.abs(closest.t - targetT)) closest = pt;
+    }
+    chartTooltipEl.textContent = `${closest.db.toFixed(1)} dB · ${Math.round((now - closest.t) / 1000)}s ago`;
+    chartTooltipEl.style.left = (e.clientX - rect.left) + 'px';
+    chartTooltipEl.classList.add('visible');
+  });
+  canvas.addEventListener('mouseleave', () => chartTooltipEl.classList.remove('visible'));
+
+  // --- Today's Timeline: hour-by-hour alert counts, pulled from the same
+  // log the dashboard uses, so you get a shape of the day without leaving
+  // this page.
+  async function loadTodayTimeline() {
+    try {
+      const start = new Date(); start.setHours(0, 0, 0, 0);
+      const res = await fetch(`/api/logs/breaches?start=${start.toISOString()}&end=${new Date().toISOString()}`);
+      if (!res.ok) return;
+      const rows = await res.json();
+      drawTodayChart(rows);
+      todayChartHintEl.textContent = rows.length
+        ? `${rows.length} alert${rows.length === 1 ? '' : 's'} today.`
+        : 'No alerts logged yet today.';
+    } catch (e) { /* offline is fine, just skip this widget */ }
+  }
+  function drawTodayChart(rows) {
+    const w = todayCanvas.width, h = todayCanvas.height;
+    todayCtx.clearRect(0, 0, w, h);
+    const hourly = new Array(24).fill(0).map(() => ({ high: 0, low: 0 }));
+    rows.forEach(r => {
+      const hr = new Date(r.ts).getHours();
+      if (r.type === 'low') hourly[hr].low++; else hourly[hr].high++;
+    });
+    const maxCount = Math.max(1, ...hourly.map(b => b.high + b.low));
+    const barW = w / 24;
+    hourly.forEach((b, i) => {
+      const total = b.high + b.low;
+      if (!total) return;
+      const highH = (b.high / maxCount) * (h - 14);
+      const lowH = (b.low / maxCount) * (h - 14);
+      const x = i * barW + barW * 0.2;
+      const bw = barW * 0.6;
+      todayCtx.fillStyle = 'rgba(255,107,107,0.85)';
+      todayCtx.fillRect(x, h - highH, bw, highH);
+      todayCtx.fillStyle = 'rgba(62,198,255,0.85)';
+      todayCtx.fillRect(x, h - highH - lowH, bw, lowH);
+    });
+    todayCtx.fillStyle = 'rgba(22,22,26,0.35)';
+    todayCtx.font = `${10 * devicePixelRatio}px sans-serif`;
+    [0, 6, 12, 18].forEach(hr => {
+      todayCtx.fillText(hr + ':00', hr * barW + 2, h - 2);
+    });
+  }
+  refreshTimelineBtn.addEventListener('click', loadTodayTimeline);
 
   function drawChart() {
     const w = canvas.width, h = canvas.height;
@@ -758,6 +825,7 @@
 
     lastAlertTimeEl.textContent = new Date(payload.timestamp).toLocaleTimeString();
     lastAlertDetailEl.textContent = `${type === 'low' ? 'Quiet' : 'Loud'} · ${payload.peakDb} dB · ${payload.duration}s`;
+    loadTodayTimeline();
   }
 
   function addToFeed(payload) {
@@ -786,4 +854,5 @@
 
   loadSettings();
   drawChart();
+  loadTodayTimeline();
 })();

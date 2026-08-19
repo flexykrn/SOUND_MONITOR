@@ -23,9 +23,7 @@
   <p style="color:var(--ink-soft);font-weight:500;">Listens to the mic in this tab. Nothing is recorded — only a live noise number is used.</p>
   <div class="btn-row">
     <button id="startBtn" class="accent">▶ Start Monitoring</button>
-    <button id="testSpeaker" class="secondary" type="button">🔊 Test Speaker</button>
   </div>
-  <p class="hint">On phones/tablets, tap Test Speaker first — it confirms sound works and unlocks alert playback for later.</p>
   <div class="error" id="permErr" style="display:none;"></div>
 </div>
 
@@ -51,10 +49,20 @@
         </div>
       </div>
 
-      <canvas id="chart" height="130" style="margin-top:14px;"></canvas>
+      <div style="position:relative;">
+        <canvas id="chart" height="130" style="margin-top:14px;"></canvas>
+        <div class="chart-tooltip" id="chartTooltip"></div>
+      </div>
+      <div class="hint">Hover the chart for exact readings.</div>
 
       <h3 style="text-align:left;">Live frequency</h3>
       <div class="eq" id="eq"></div>
+    </div>
+
+    <div class="card">
+      <h2>📈 Today's Timeline <button class="pill secondary" id="refreshTimeline" type="button" style="margin-left:auto;">↻ Refresh</button></h2>
+      <canvas id="todayChart" height="120"></canvas>
+      <div class="hint" id="todayChartHint">Loud/quiet alerts logged today, hour by hour.</div>
     </div>
   </div>
 
