@@ -746,10 +746,12 @@
     statMinEl.textContent = sessionMin.toFixed(1);
     statPeakEl.textContent = sessionPeak.toFixed(1);
 
-    // Alerts always evaluate against the Slow (1000ms) trace regardless of
-    // what's displayed, so a brief spike can't itself satisfy a multi-
-    // second sustain window — that's the whole point of the sustain setting.
-    handleHighThreshold(slowDb);
+    // Loud alerts evaluate against Fast (125ms) so a sudden bang is caught
+    // almost immediately — the sustain field is what filters out one-off
+    // clatter, not the trace itself. Quiet alerts evaluate against Slow
+    // (1000ms) since their sustain window is minutes long anyway and the
+    // smoothing avoids false triggers from momentary silence gaps.
+    handleHighThreshold(fastDb);
     handleLowThreshold(slowDb);
     handleAmbientLogging(displayDb);
   }
