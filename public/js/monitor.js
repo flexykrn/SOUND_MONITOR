@@ -371,7 +371,39 @@
   let lastAmbientLog = 0;
   const recentAlerts = [];
 
+  // Keeps the display awake while monitoring, since this app is meant to
+  // run in an always-open tab — a laptop that sleeps stops sampling
+  // entirely. Released automatically by the browser when the tab is
+  // hidden; re-acquired here once it's visible again.
+  let wakeLock = null;
+  async function requestWakeLock() {
+    if (!('wakeLock' in navigator)) return;
+    try {
+      wakeLock = await navigator.wakeLock.request('screen');
+      wakeLock.addEventListener('release', () => { wakeLock = null; });
+    } catch (e) { /* not fatal — monitoring still works, screen just may sleep */ }
+  }
+  document.addEventListener('visibilitychange', () => {
+    if (monitoring && document.visibilityState === 'visible' && wakeLock === null) requestWakeLock();
+  });
+
+  let micRetryTimer = null;
+  let micRetryAttempt = 0;
+
+  function handleMicDisconnected() {
+    monitoring = false;
+    clearInterval(samplerInterval);
+    statusEl.classList.remove('active');
+    statusEl.classList.add('inactive');
+    statusTextEl.textContent = 'Mic disconnected — reconnecting...';
+    micRetryAttempt++;
+    const delay = Math.min(2000 * micRetryAttempt, 15000);
+    micRetryTimer = setTimeout(startMonitoring, delay);
+  }
+
   async function startMonitoring() {
+    clearTimeout(micRetryTimer);
+    clearInterval(samplerInterval);
     let mediaStream;
     try {
       mediaStream = await navigator.mediaDevices.getUserMedia({
@@ -383,6 +415,12 @@
       return;
     }
     permErrEl.style.display = 'none';
+    micRetryAttempt = 0;
+
+    mediaStream.getAudioTracks().forEach(track => {
+      track.addEventListener('ended', handleMicDisconnected);
+    });
+    requestWakeLock();
 
     audioCtx = new (window.AudioContext || window.webkitAudioContext)();
     const source = audioCtx.createMediaStreamSource(mediaStream);
@@ -409,7 +447,8 @@
     lowpass.connect(analyser);
 
     monitoring = true;
-    sessionStartMs = Date.now();
+    const isFirstStart = sessionStartMs === null;
+    if (isFirstStart) sessionStartMs = Date.now();
     statusEl.classList.remove('inactive');
     statusEl.classList.add('active');
     statusTextEl.textContent = 'Monitoring active';
@@ -423,8 +462,8 @@
     // less jittery than re-measuring 60x/sec on whatever the render loop
     // happens to do.
     samplerInterval = setInterval(sampleAndUpdate, SAMPLE_MS);
-    requestAnimationFrame(renderLoop);
-    setInterval(updateSessionTimer, 1000);
+    requestAnimationFrame(renderLoop); // safe to resume even if stopped by a prior mic disconnect
+    if (isFirstStart) setInterval(updateSessionTimer, 1000);
 
     // Give the sampler a second to get real readings flowing before
     // auto-calibrating off of them.
