@@ -8,6 +8,7 @@
   const ctx = canvas.getContext('2d');
   const logoutBtn = document.getElementById('logoutBtn');
   const deviceNameEl = document.getElementById('deviceName');
+  const peerModeBtn = document.getElementById('peerModeBtn');
 
   const DEVICE_NAME_KEY = 'noiseMonitorDeviceName';
   deviceNameEl.value = localStorage.getItem(DEVICE_NAME_KEY) || '';
@@ -89,6 +90,9 @@
     positionMarkers();
     calibrationReadoutEl.textContent = settings.calibration;
 
+    setPeerModeButton();
+    if (peerMode) { pullSharedSettings(true); startPeerPolling(); }
+
     const savedHigh = localStorage.getItem(CLIP_HIGH_KEY);
     if (savedHigh) {
       clipStatusEl.textContent = 'Custom clip loaded.';
@@ -110,6 +114,7 @@
     localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
     positionMarkers();
     calibrationReadoutEl.textContent = settings.calibration;
+    if (peerMode) pushSharedSettings();
   }
 
   function positionMarkers() {
@@ -117,6 +122,90 @@
     lowMarkerEl.style.left = pct(settings.lowThreshold) + '%';
     highMarkerEl.style.left = pct(settings.threshold) + '%';
   }
+
+  // --- Peer mode: sync threshold/sustain/response across every device in
+  // the room via the server. Calibration and clips stay per-device — they
+  // depend on that mic's physical position, not the room as a whole.
+  const PEER_MODE_KEY = 'noiseMonitorPeerMode';
+  let peerMode = localStorage.getItem(PEER_MODE_KEY) === '1';
+  let peerPollTimer = null;
+  let lastRemoteUpdatedAt = null;
+
+  function setPeerModeButton() {
+    peerModeBtn.textContent = 'Peer Mode: ' + (peerMode ? 'On' : 'Off');
+    peerModeBtn.classList.toggle('toggle-off', !peerMode);
+  }
+
+  function applyRemoteToFields(row) {
+    settings.threshold = Number(row.threshold);
+    settings.sustain = Number(row.sustain);
+    settings.lowThreshold = Number(row.low_threshold);
+    settings.lowSustain = Number(row.low_sustain);
+    settings.response = row.response === 'slow' ? 'slow' : 'fast';
+    thresholdEl.value = settings.threshold; thresholdSliderEl.value = settings.threshold;
+    sustainEl.value = settings.sustain;
+    lowThresholdEl.value = settings.lowThreshold; lowThresholdSliderEl.value = settings.lowThreshold;
+    lowSustainEl.value = settings.lowSustain;
+    setResponseButtons();
+    positionMarkers();
+    localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
+  }
+
+  function pullSharedSettings(applyToUI) {
+    return fetch('/api/settings/shared')
+      .then(r => r.json())
+      .then(row => {
+        if (!row) return;
+        lastRemoteUpdatedAt = row.updated_at;
+        if (applyToUI) applyRemoteToFields(row);
+      })
+      .catch(() => {});
+  }
+
+  function pushSharedSettings() {
+    fetch('/api/settings/shared', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        threshold: settings.threshold,
+        sustain: settings.sustain,
+        lowThreshold: settings.lowThreshold,
+        lowSustain: settings.lowSustain,
+        response: settings.response,
+      }),
+    }).then(r => r.json()).then(row => { if (row) lastRemoteUpdatedAt = row.updated_at; }).catch(() => {});
+  }
+
+  const THRESHOLD_INPUTS = [thresholdEl, thresholdSliderEl, sustainEl, lowThresholdEl, lowThresholdSliderEl, lowSustainEl];
+
+  function startPeerPolling() {
+    if (peerPollTimer) return;
+    peerPollTimer = setInterval(() => {
+      if (!peerMode || THRESHOLD_INPUTS.includes(document.activeElement)) return;
+      fetch('/api/settings/shared').then(r => r.json()).then(row => {
+        if (row && row.updated_at !== lastRemoteUpdatedAt) {
+          lastRemoteUpdatedAt = row.updated_at;
+          applyRemoteToFields(row);
+        }
+      }).catch(() => {});
+    }, 5000);
+  }
+
+  function stopPeerPolling() {
+    clearInterval(peerPollTimer);
+    peerPollTimer = null;
+  }
+
+  peerModeBtn.addEventListener('click', () => {
+    peerMode = !peerMode;
+    localStorage.setItem(PEER_MODE_KEY, peerMode ? '1' : '0');
+    setPeerModeButton();
+    if (peerMode) {
+      pullSharedSettings(true).then(startPeerPolling);
+    } else {
+      stopPeerPolling();
+    }
+  });
 
   // Number <-> slider two-way sync, auto-saving on every change.
   function linkPair(numberEl, sliderEl) {
