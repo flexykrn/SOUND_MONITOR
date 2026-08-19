@@ -629,26 +629,9 @@
     return Math.max(0, Math.min(140, approxDb));
   }
 
-  // Real audio always has some noise-floor jitter — a bit-identical raw
-  // reading held for 3s straight means the stream silently died (common
-  // on mobile when the screen locks or another app grabs the mic) rather
-  // than the room actually going perfectly, unnaturally still.
-  let stallValue = null;
-  let stallCount = 0;
-  const STALL_SAMPLES = 30;
-
   function sampleAndUpdate() {
     if (!monitoring) return;
     const rawDb = computeRawDb();
-
-    if (rawDb === stallValue) {
-      stallCount++;
-      if (stallCount >= STALL_SAMPLES) { stallCount = 0; handleMicDisconnected(); return; }
-    } else {
-      stallValue = rawDb;
-      stallCount = 0;
-    }
-
     lastRawDb = rawDb;
     fastDb = fastDb === null ? rawDb : fastDb + FAST_ALPHA * (rawDb - fastDb);
     slowDb = slowDb === null ? rawDb : slowDb + SLOW_ALPHA * (rawDb - slowDb);
