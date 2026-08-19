@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Office Noise Monitor</title>
+<link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+<div class="top-nav">
+  <h1>Noise Monitor</h1>
+  <div>
+    <span id="status" class="status inactive"><span class="dot"></span><span id="statusText">Inactive</span></span>
+    <a href="/dashboard.html"><button class="secondary" type="button">Dashboard</button></a>
+  </div>
+</div>
+
+<div id="permissionCard" class="card">
+  <h2>Microphone access required</h2>
+  <p>This app listens to your mic continuously to measure ambient office noise. No audio is recorded or sent anywhere — only a computed dB number leaves this page.</p>
+  <button id="startBtn">Start monitoring</button>
+  <div class="error" id="permErr" style="display:none;"></div>
+</div>
+
+<div class="row">
+  <div class="card">
+    <h2>Live level</h2>
+    <div class="db-reading ok" id="dbReading">--</div>
+    <p style="text-align:center;color:#888;" id="thresholdInfo"></p>
+    <canvas id="chart" height="160"></canvas>
+  </div>
+
+  <div class="card">
+    <h2>Settings</h2>
+    <label for="calibration">Calibration offset (dB)</label>
+    <input type="number" id="calibration" step="0.5" value="0">
+    <div class="hint">Adjust so the reading matches a real sound level meter.</div>
+
+    <label for="threshold">Alert threshold (dB)</label>
+    <input type="number" id="threshold" step="1" value="65">
+
+    <label for="sustain">Sustain time before alert (seconds)</label>
+    <input type="number" id="sustain" step="0.5" min="0.5" value="3">
+
+    <label for="clipFile">Custom alert clip (mp3/wav)</label>
+    <input type="file" id="clipFile" accept="audio/*">
+    <div class="hint" id="clipStatus">No clip loaded — will fall back to a beep.</div>
+
+    <button id="saveSettings">Save settings</button>
+    <button id="testClip" class="secondary" type="button">Test clip</button>
+  </div>
+</div>
+
+<script src="/js/monitor.js"></script>
+</body>
+</html>

@@ -1,0 +1,73 @@
+* { box-sizing: border-box; }
+body {
+  font-family: -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+  background: #0f1115;
+  color: #e6e6e6;
+  margin: 0;
+  padding: 24px;
+}
+h1, h2 { font-weight: 600; }
+a { color: #6cb4ff; }
+.card {
+  background: #1a1d24;
+  border: 1px solid #2a2e38;
+  border-radius: 10px;
+  padding: 20px;
+  margin-bottom: 20px;
+}
+.db-reading {
+  font-size: 72px;
+  font-weight: 700;
+  text-align: center;
+  margin: 10px 0;
+}
+.db-reading.ok { color: #4caf50; }
+.db-reading.warn { color: #ff9800; }
+.db-reading.breach { color: #f44336; }
+.status {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  padding: 6px 12px;
+  border-radius: 20px;
+  background: #2a2e38;
+}
+.status .dot {
+  width: 10px; height: 10px; border-radius: 50%;
+  background: #666;
+}
+.status.active .dot { background: #4caf50; }
+.status.inactive .dot { background: #f44336; }
+canvas { width: 100%; background: #12141a; border-radius: 8px; }
+label { display: block; margin: 10px 0 4px; font-size: 13px; color: #aaa; }
+input[type=number], input[type=password], input[type=date], input[type=file], select {
+  width: 100%;
+  padding: 8px 10px;
+  border-radius: 6px;
+  border: 1px solid #333846;
+  background: #12141a;
+  color: #eee;
+  font-size: 14px;
+}
+button {
+  background: #3b7dd8;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  padding: 10px 18px;
+  font-size: 14px;
+  cursor: pointer;
+  margin-top: 12px;
+}
+button:hover { background: #2f66b3; }
+button.secondary { background: #444; }
+button.secondary:hover { background: #333; }
+table { width: 100%; border-collapse: collapse; margin-top: 12px; font-size: 14px; }
+th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid #2a2e38; }
+th { color: #aaa; font-weight: 500; }
+.row { display: flex; gap: 20px; flex-wrap: wrap; }
+.row > div { flex: 1; min-width: 260px; }
+.top-nav { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+.error { color: #f44336; font-size: 13px; margin-top: 6px; }
+.hint { color: #888; font-size: 12px; margin-top: 4px; }

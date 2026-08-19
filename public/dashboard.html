@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Dashboard — Noise Monitor</title>
+<link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+<div class="top-nav">
+  <h1>Noise Dashboard</h1>
+  <div>
+    <a href="/index.html"><button class="secondary" type="button">Monitor</button></a>
+    <button class="secondary" id="logoutBtn" type="button">Log out</button>
+  </div>
+</div>
+
+<div class="card">
+  <h2>Filter</h2>
+  <div class="row">
+    <div>
+      <label for="startDate">Start date</label>
+      <input type="date" id="startDate">
+    </div>
+    <div>
+      <label for="endDate">End date</label>
+      <input type="date" id="endDate">
+    </div>
+  </div>
+  <button id="applyFilter">Apply</button>
+  <button id="exportBreaches" class="secondary" type="button">Export breaches CSV</button>
+  <button id="exportAmbient" class="secondary" type="button">Export ambient CSV</button>
+</div>
+
+<div class="row">
+  <div class="card" style="flex:2;">
+    <h2>Noise timeline</h2>
+    <canvas id="timelineChart" height="220"></canvas>
+  </div>
+  <div class="card" style="flex:1;">
+    <h2>Summary</h2>
+    <p id="summary">Loading...</p>
+  </div>
+</div>
+
+<div class="card">
+  <h2>Threshold-breach events</h2>
+  <table>
+    <thead><tr><th>Timestamp</th><th>Peak dB</th><th>Duration (s)</th></tr></thead>
+    <tbody id="breachTable"></tbody>
+  </table>
+</div>
+
+<script src="/js/dashboard.js"></script>
+</body>
+</html>
