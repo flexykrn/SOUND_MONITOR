@@ -87,15 +87,16 @@
   const SETTINGS_KEY = 'noiseMonitorSettings';
   const CLIP_HIGH_KEY = 'noiseMonitorClipHigh';
   const CLIP_LOW_KEY = 'noiseMonitorClipLow';
+  const DEFAULT_HIGH_CLIP_URL = '/assets/loud-default.mp3';
   const DEFAULT_LOW_CLIP_URL = '/assets/quiet-default.mp3';
   const METER_MIN = 0, METER_MAX = 140;
 
   let settings = {
     calibration: 0,
     threshold: 65,
-    sustain: 3,        // seconds
+    sustain: 1,        // seconds
     lowThreshold: 40,
-    lowSustain: 5,      // minutes
+    lowSustain: 10,     // minutes
     response: 'fast',   // 'fast' (125ms) or 'slow' (1000ms), like IEC 61672 SLMs
   };
 
@@ -124,6 +125,9 @@
     if (savedHigh) {
       clipStatusEl.textContent = 'Custom clip loaded.';
       highAlertAudio = new Audio(savedHigh);
+    } else {
+      clipStatusEl.textContent = 'Using default loud-alert sound. Upload your own to replace it.';
+      highAlertAudio = new Audio(DEFAULT_HIGH_CLIP_URL);
     }
     const savedLow = localStorage.getItem(CLIP_LOW_KEY);
     if (savedLow) {
@@ -138,9 +142,9 @@
   function saveSettings() {
     settings.calibration = parseFloat(calibrationEl.value) || 0;
     settings.threshold = parseFloat(thresholdEl.value) || 65;
-    settings.sustain = parseFloat(sustainEl.value) || 3;
+    settings.sustain = parseFloat(sustainEl.value) || 1;
     settings.lowThreshold = parseFloat(lowThresholdEl.value) || 40;
-    settings.lowSustain = parseFloat(lowSustainEl.value) || 5;
+    settings.lowSustain = parseFloat(lowSustainEl.value) || 10;
     localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
     positionMarkers();
     calibrationReadoutEl.textContent = settings.calibration;
@@ -377,10 +381,10 @@
   resizeCanvas();
 
   // --- Chart hover tooltip: shows the exact dB + time under the cursor. ---
-  canvas.addEventListener('mousemove', (e) => {
+  function showChartTooltip(clientX) {
     if (history.length < 2) return;
     const rect = canvas.getBoundingClientRect();
-    const xFrac = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+    const xFrac = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
     const now = performance.now();
     const age = (1 - xFrac) * HISTORY_SECONDS;
     const targetT = now - age * 1000;
@@ -389,10 +393,15 @@
       if (Math.abs(pt.t - targetT) < Math.abs(closest.t - targetT)) closest = pt;
     }
     chartTooltipEl.textContent = `${closest.db.toFixed(1)} dB · ${Math.round((now - closest.t) / 1000)}s ago`;
-    chartTooltipEl.style.left = (e.clientX - rect.left) + 'px';
+    chartTooltipEl.style.left = Math.max(0, Math.min(rect.width, clientX - rect.left)) + 'px';
     chartTooltipEl.classList.add('visible');
-  });
+  }
+  canvas.addEventListener('mousemove', (e) => showChartTooltip(e.clientX));
   canvas.addEventListener('mouseleave', () => chartTooltipEl.classList.remove('visible'));
+  // Touch: drag a finger across the chart to scrub it, same as mouse hover.
+  canvas.addEventListener('touchstart', (e) => { showChartTooltip(e.touches[0].clientX); }, { passive: true });
+  canvas.addEventListener('touchmove', (e) => { showChartTooltip(e.touches[0].clientX); }, { passive: true });
+  canvas.addEventListener('touchend', () => chartTooltipEl.classList.remove('visible'));
 
   // --- Today's Timeline: hour-by-hour alert counts, pulled from the same
   // log the dashboard uses, so you get a shape of the day without leaving
@@ -588,6 +597,16 @@
     clearInterval(samplerInterval);
     unlockAudioForAutoplay();
 
+    // Create/resume the AudioContext synchronously, still inside the click
+    // handler and before any `await`. iOS Safari only counts a context as
+    // "unlocked by a user gesture" if nothing asynchronous separates the
+    // click from the context's creation/resume — an await first (like the
+    // getUserMedia call below) can leave it stuck suspended for good.
+    if (!audioCtx || audioCtx.state === 'closed') {
+      audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    }
+    audioCtx.resume().catch(() => {});
+
     let mediaStream;
     try {
       // Some mobile browsers (notably older Android WebViews) throw
@@ -615,13 +634,9 @@
     });
     requestWakeLock();
 
-    if (!audioCtx || audioCtx.state === 'closed') {
-      audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-    }
-    // iOS/Safari and some Android browsers create contexts in a
-    // "suspended" state even after a user gesture, and can re-suspend one
-    // mid-session (phone call, another app grabbing audio focus). Resume
-    // immediately, and again automatically whenever that happens.
+    // iOS/Safari and some Android browsers can re-suspend a context
+    // mid-session (phone call, another app grabbing audio focus) — resume
+    // automatically whenever that happens.
     audioCtx.resume().catch(() => {});
     audioCtx.addEventListener('statechange', () => {
       if (monitoring && audioCtx.state === 'suspended') audioCtx.resume().catch(() => {});
