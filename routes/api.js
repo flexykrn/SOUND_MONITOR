@@ -33,15 +33,21 @@ router.get('/session', (req, res) => {
 });
 
 // --- Ingest (called from the always-on monitor tab, no auth required) ---
+function cleanSource(source) {
+  if (typeof source !== 'string' || !source.trim()) return 'Unnamed device';
+  return source.trim().slice(0, 60);
+}
+
 router.post('/logs/breach', async (req, res) => {
-  const { timestamp, peakDb, duration } = req.body || {};
+  const { timestamp, peakDb, duration, type, source } = req.body || {};
   if (timestamp == null || peakDb == null || duration == null) {
     return res.status(400).json({ error: 'timestamp, peakDb, duration required' });
   }
+  const breachType = type === 'low' ? 'low' : 'high';
   try {
     await pool.query(
-      'INSERT INTO breach_events (ts, peak_db, duration_seconds) VALUES ($1, $2, $3)',
-      [new Date(timestamp), peakDb, duration]
+      'INSERT INTO breach_events (ts, peak_db, duration_seconds, type, source) VALUES ($1, $2, $3, $4, $5)',
+      [new Date(timestamp), peakDb, duration, breachType, cleanSource(source)]
     );
     res.json({ ok: true });
   } catch (err) {
@@ -51,14 +57,14 @@ router.post('/logs/breach', async (req, res) => {
 });
 
 router.post('/logs/ambient', async (req, res) => {
-  const { timestamp, dbLevel } = req.body || {};
+  const { timestamp, dbLevel, source } = req.body || {};
   if (timestamp == null || dbLevel == null) {
     return res.status(400).json({ error: 'timestamp, dbLevel required' });
   }
   try {
     await pool.query(
-      'INSERT INTO ambient_readings (ts, db_level) VALUES ($1, $2)',
-      [new Date(timestamp), dbLevel]
+      'INSERT INTO ambient_readings (ts, db_level, source) VALUES ($1, $2, $3)',
+      [new Date(timestamp), dbLevel, cleanSource(source)]
     );
     res.json({ ok: true });
   } catch (err) {
@@ -72,7 +78,7 @@ router.get('/logs/breaches', requireAuth, async (req, res) => {
   const { start, end } = req.query;
   try {
     const result = await pool.query(
-      `SELECT id, ts, peak_db, duration_seconds FROM breach_events
+      `SELECT id, ts, peak_db, duration_seconds, type, source FROM breach_events
        WHERE ts >= $1 AND ts <= $2 ORDER BY ts DESC`,
       [start || '1970-01-01', end || new Date().toISOString()]
     );
@@ -87,7 +93,7 @@ router.get('/logs/ambient', requireAuth, async (req, res) => {
   const { start, end } = req.query;
   try {
     const result = await pool.query(
-      `SELECT id, ts, db_level FROM ambient_readings
+      `SELECT id, ts, db_level, source FROM ambient_readings
        WHERE ts >= $1 AND ts <= $2 ORDER BY ts ASC`,
       [start || '1970-01-01', end || new Date().toISOString()]
     );
@@ -106,20 +112,20 @@ router.get('/export/csv', requireAuth, async (req, res) => {
     let rows, header;
     if (table === 'ambient_readings') {
       const result = await pool.query(
-        `SELECT ts, db_level FROM ambient_readings WHERE ts >= $1 AND ts <= $2 ORDER BY ts ASC`,
+        `SELECT ts, db_level, source FROM ambient_readings WHERE ts >= $1 AND ts <= $2 ORDER BY ts ASC`,
         [start || '1970-01-01', end || new Date().toISOString()]
       );
       rows = result.rows;
-      header = 'timestamp,db_level\n';
-      var csvBody = rows.map(r => `${r.ts.toISOString()},${r.db_level}`).join('\n');
+      header = 'timestamp,db_level,source\n';
+      var csvBody = rows.map(r => `${r.ts.toISOString()},${r.db_level},"${r.source}"`).join('\n');
     } else {
       const result = await pool.query(
-        `SELECT ts, peak_db, duration_seconds FROM breach_events WHERE ts >= $1 AND ts <= $2 ORDER BY ts ASC`,
+        `SELECT ts, peak_db, duration_seconds, type, source FROM breach_events WHERE ts >= $1 AND ts <= $2 ORDER BY ts ASC`,
         [start || '1970-01-01', end || new Date().toISOString()]
       );
       rows = result.rows;
-      header = 'timestamp,peak_db,duration_seconds\n';
-      var csvBody = rows.map(r => `${r.ts.toISOString()},${r.peak_db},${r.duration_seconds}`).join('\n');
+      header = 'timestamp,peak_db,duration_seconds,type,source\n';
+      var csvBody = rows.map(r => `${r.ts.toISOString()},${r.peak_db},${r.duration_seconds},${r.type},"${r.source}"`).join('\n');
     }
     const csv = header + csvBody;
     res.setHeader('Content-Type', 'text/csv');

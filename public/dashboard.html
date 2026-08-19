@@ -2,52 +2,73 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<title>Dashboard — Noise Monitor</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>History — Noise Monitor</title>
 <link rel="stylesheet" href="/css/style.css">
 </head>
 <body>
 <div class="top-nav">
-  <h1>Noise Dashboard</h1>
-  <div>
+  <h1>Noise<br>History</h1>
+  <div class="actions">
     <a href="/index.html"><button class="secondary" type="button">Monitor</button></a>
     <button class="secondary" id="logoutBtn" type="button">Log out</button>
   </div>
 </div>
 
-<div class="card">
-  <h2>Filter</h2>
-  <div class="row">
-    <div>
-      <label for="startDate">Start date</label>
-      <input type="date" id="startDate">
-    </div>
-    <div>
-      <label for="endDate">End date</label>
-      <input type="date" id="endDate">
+<div class="layout">
+  <div class="stack">
+    <div class="card">
+      <h2>Noise over time</h2>
+      <canvas id="timelineChart" height="220"></canvas>
+      <p class="hint"><span class="badge high">Loud</span> <span class="badge low">Quiet</span> markers show when an alert fired.</p>
     </div>
   </div>
-  <button id="applyFilter">Apply</button>
-  <button id="exportBreaches" class="secondary" type="button">Export breaches CSV</button>
-  <button id="exportAmbient" class="secondary" type="button">Export ambient CSV</button>
-</div>
 
-<div class="row">
-  <div class="card" style="flex:2;">
-    <h2>Noise timeline</h2>
-    <canvas id="timelineChart" height="220"></canvas>
-  </div>
-  <div class="card" style="flex:1;">
-    <h2>Summary</h2>
-    <p id="summary">Loading...</p>
+  <div class="stack">
+    <div class="card">
+      <h2>Date range</h2>
+      <div class="row">
+        <div>
+          <label for="startDate">From</label>
+          <input type="date" id="startDate">
+        </div>
+        <div>
+          <label for="endDate">To</label>
+          <input type="date" id="endDate">
+        </div>
+      </div>
+      <button id="applyFilter" class="accent block">Show</button>
+      <button id="exportBreaches" class="secondary block" type="button">Export events (CSV)</button>
+      <button id="exportAmbient" class="secondary block" type="button">Export raw levels (CSV)</button>
+    </div>
   </div>
 </div>
 
 <div class="card">
-  <h2>Threshold-breach events</h2>
-  <table>
-    <thead><tr><th>Timestamp</th><th>Peak dB</th><th>Duration (s)</th></tr></thead>
-    <tbody id="breachTable"></tbody>
-  </table>
+  <h2>At a glance</h2>
+  <div class="stat-grid" id="statGrid"></div>
+</div>
+
+<div class="layout">
+  <div class="stack">
+    <div class="card">
+      <h2>Alert events</h2>
+      <table>
+        <thead><tr><th>When</th><th>Type</th><th>Peak/Min dB</th><th>Lasted</th><th>Device</th></tr></thead>
+        <tbody id="breachTable"></tbody>
+      </table>
+    </div>
+  </div>
+  <div class="stack">
+    <div class="card">
+      <h3 style="margin-top:0;">Alerts by hour of day</h3>
+      <canvas id="hourChart" height="140"></canvas>
+    </div>
+    <div class="card">
+      <h3 style="margin-top:0;">Noise level distribution</h3>
+      <canvas id="histChart" height="140"></canvas>
+    </div>
+  </div>
 </div>
 
 <script src="/js/dashboard.js"></script>

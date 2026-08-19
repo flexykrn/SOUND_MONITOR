@@ -13,15 +13,23 @@ CREATE TABLE IF NOT EXISTS breach_events (
   ts TIMESTAMPTZ NOT NULL,
   peak_db NUMERIC NOT NULL,
   duration_seconds NUMERIC NOT NULL,
+  type TEXT NOT NULL DEFAULT 'high',
+  source TEXT NOT NULL DEFAULT 'Unnamed device',
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+ALTER TABLE breach_events ADD COLUMN IF NOT EXISTS type TEXT NOT NULL DEFAULT 'high';
+ALTER TABLE breach_events ADD COLUMN IF NOT EXISTS source TEXT NOT NULL DEFAULT 'Unnamed device';
 
 CREATE TABLE IF NOT EXISTS ambient_readings (
   id SERIAL PRIMARY KEY,
   ts TIMESTAMPTZ NOT NULL,
   db_level NUMERIC NOT NULL,
+  source TEXT NOT NULL DEFAULT 'Unnamed device',
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+ALTER TABLE ambient_readings ADD COLUMN IF NOT EXISTS source TEXT NOT NULL DEFAULT 'Unnamed device';
 
 CREATE INDEX IF NOT EXISTS idx_breach_events_ts ON breach_events (ts);
 CREATE INDEX IF NOT EXISTS idx_ambient_readings_ts ON ambient_readings (ts);

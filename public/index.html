@@ -2,51 +2,124 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Office Noise Monitor</title>
 <link rel="stylesheet" href="/css/style.css">
 </head>
 <body>
 <div class="top-nav">
-  <h1>Noise Monitor</h1>
-  <div>
-    <span id="status" class="status inactive"><span class="dot"></span><span id="statusText">Inactive</span></span>
-    <a href="/dashboard.html"><button class="secondary" type="button">Dashboard</button></a>
+  <h1>Noise<br>Monitor</h1>
+  <div class="actions">
+    <input type="text" id="deviceName" placeholder="Device name (e.g. Reception)" style="width:200px;">
+    <span id="status" class="status inactive"><span class="dot"></span><span id="statusText">Off</span></span>
+    <a href="/dashboard.html"><button class="secondary" type="button">History</button></a>
+    <button class="secondary" id="logoutBtn" type="button">Log out</button>
   </div>
 </div>
 
-<div id="permissionCard" class="card">
-  <h2>Microphone access required</h2>
-  <p>This app listens to your mic continuously to measure ambient office noise. No audio is recorded or sent anywhere — only a computed dB number leaves this page.</p>
-  <button id="startBtn">Start monitoring</button>
+<div id="permissionCard" class="card hero accent-violet">
+  <h2 style="justify-content:center;">Turn on monitoring</h2>
+  <p style="color:var(--ink-soft);font-weight:500;">Listens to the mic in this tab. Nothing is recorded — only a live noise number is used.</p>
+  <button id="startBtn" class="accent block">Start Monitoring</button>
   <div class="error" id="permErr" style="display:none;"></div>
 </div>
 
-<div class="row">
-  <div class="card">
-    <h2>Live level</h2>
-    <div class="db-reading ok" id="dbReading">--</div>
-    <p style="text-align:center;color:#888;" id="thresholdInfo"></p>
-    <canvas id="chart" height="160"></canvas>
+<div class="layout">
+  <div class="stack">
+    <div class="card hero">
+      <div class="db-reading ok" id="dbReading">--</div>
+      <div class="db-unit">dB right now</div>
+
+      <div class="meter" id="meter">
+        <div class="thresh-marker" id="lowMarker"></div>
+        <div class="thresh-marker" id="highMarker"></div>
+        <div class="needle" id="needle"></div>
+      </div>
+      <div class="meter-scale"><span>0</span><span>35</span><span>70</span><span>105</span><span>140</span></div>
+
+      <div class="row" style="margin-top:18px;justify-content:center;">
+        <div style="flex:none;">
+          <button class="pill secondary" id="responseFast" type="button">Fast</button>
+          <button class="pill toggle-off secondary" id="responseSlow" type="button">Slow</button>
+          <span class="hint">response speed, like a real SPL meter</span>
+        </div>
+      </div>
+
+      <canvas id="chart" height="130" style="margin-top:14px;"></canvas>
+
+      <h3 style="text-align:left;">Live frequency</h3>
+      <div class="eq" id="eq"></div>
+    </div>
   </div>
 
-  <div class="card">
-    <h2>Settings</h2>
-    <label for="calibration">Calibration offset (dB)</label>
-    <input type="number" id="calibration" step="0.5" value="0">
-    <div class="hint">Adjust so the reading matches a real sound level meter.</div>
+  <div class="stack">
+    <div class="card">
+      <h2>📊 Session</h2>
+      <div class="stat-grid cols-2">
+        <div class="stat-box"><div class="num" id="statAvg">--</div><div class="lbl">Avg</div></div>
+        <div class="stat-box"><div class="num" id="statMin">--</div><div class="lbl">Min</div></div>
+        <div class="stat-box"><div class="num" id="statPeak">--</div><div class="lbl">Peak hold</div></div>
+        <div class="stat-box"><div class="num" id="statTime">00:00</div><div class="lbl">Time</div></div>
+      </div>
+      <div class="stat-grid cols-2" style="margin-top:12px;">
+        <div class="stat-box"><div class="num" id="highCountToday">0</div><div class="lbl">Loud alerts today</div></div>
+        <div class="stat-box"><div class="num" id="lowCountToday">0</div><div class="lbl">Quiet alerts today</div></div>
+      </div>
+    </div>
 
-    <label for="threshold">Alert threshold (dB)</label>
+    <div class="card">
+      <h2>🕒 Recent Alerts</h2>
+      <div class="feed" id="recentFeed">
+        <div class="feed-empty">No alerts yet this session.</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="layout-3">
+  <div class="card accent-coral">
+    <h2>🔴 Loud Alert</h2>
+    <label for="threshold">Alert me when it's louder than (dB)</label>
     <input type="number" id="threshold" step="1" value="65">
-
-    <label for="sustain">Sustain time before alert (seconds)</label>
+    <input type="range" id="thresholdSlider" min="30" max="120" step="1" value="65">
+    <label for="sustain">Only after it stays loud for (seconds)</label>
     <input type="number" id="sustain" step="0.5" min="0.5" value="3">
-
-    <label for="clipFile">Custom alert clip (mp3/wav)</label>
+    <label for="clipFile">Voice note to play</label>
     <input type="file" id="clipFile" accept="audio/*">
-    <div class="hint" id="clipStatus">No clip loaded — will fall back to a beep.</div>
+    <div class="hint" id="clipStatus">No clip set — will beep instead.</div>
+    <button id="testClipHigh" class="secondary">Test</button>
+  </div>
 
-    <button id="saveSettings">Save settings</button>
-    <button id="testClip" class="secondary" type="button">Test clip</button>
+  <div class="card accent-sky">
+    <h2>🔵 Quiet Alert</h2>
+    <label for="lowThreshold">Alert me when it's quieter than (dB)</label>
+    <input type="number" id="lowThreshold" step="1" value="40">
+    <input type="range" id="lowThresholdSlider" min="0" max="90" step="1" value="40">
+    <label for="lowSustain">Only after it stays quiet for (minutes)</label>
+    <input type="number" id="lowSustain" step="0.5" min="0.5" value="5">
+    <label for="lowClipFile">Voice note to play</label>
+    <input type="file" id="lowClipFile" accept="audio/*">
+    <div class="hint" id="lowClipStatus">No clip set — will beep instead.</div>
+    <button id="testClipLow" class="secondary">Test</button>
+  </div>
+
+  <div class="card accent-lime">
+    <h2>🎯 Calibration</h2>
+    <p class="hint">Fully automatic — calibrates itself for the first 3 seconds after you hit Start. No setup needed.</p>
+    <div class="hint" id="floorStatus">Waiting for monitoring to start...</div>
+    <div class="hint" style="margin-top:8px;">Current offset: <b id="calibrationReadout">0</b> dB · Raw reading: <b id="rawDbHint">--</b> dB</div>
+    <button id="resetCalibration" class="secondary">Reset calibration</button>
+
+    <details style="margin-top:14px;">
+      <summary>Have a real sound meter? Fine-tune manually</summary>
+      <div class="details-body">
+        <label for="calibration">Manual offset (dB)</label>
+        <input type="number" id="calibration" step="0.5" value="0">
+        <label for="meterReading">Real meter shows right now?</label>
+        <input type="number" id="meterReading" step="0.5" placeholder="e.g. 52">
+        <button id="quickCalibrate" class="secondary">Match to meter</button>
+      </div>
+    </details>
   </div>
 </div>
 

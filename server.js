@@ -12,11 +12,16 @@ app.use(express.json());
 app.use(cookieParser());
 app.use('/api', apiRouter);
 
-// Gate dashboard.html behind the password cookie; everything else in
-// public/ (monitor page, login page, assets) is served freely.
-app.get('/dashboard.html', (req, res) => {
-  if (req.cookies && req.cookies.noise_auth === '1') {
-    return res.sendFile(path.join(__dirname, 'public', 'dashboard.html'));
+// Gate the whole site (monitor + dashboard) behind the password cookie.
+// Only the login page itself and static assets it needs are public.
+function isAuthed(req) {
+  return !!(req.cookies && req.cookies.noise_auth === '1');
+}
+
+app.get(['/', '/index.html', '/dashboard.html'], (req, res) => {
+  if (isAuthed(req)) {
+    const file = req.path === '/dashboard.html' ? 'dashboard.html' : 'index.html';
+    return res.sendFile(path.join(__dirname, 'public', file));
   }
   return res.redirect('/login.html');
 });

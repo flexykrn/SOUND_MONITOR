@@ -2,16 +2,19 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Login — Noise Monitor</title>
 <link rel="stylesheet" href="/css/style.css">
 </head>
 <body>
-<div class="card" style="max-width:360px;margin:80px auto;">
-  <h2>Dashboard Login</h2>
-  <label for="pw">Password</label>
-  <input type="password" id="pw" autofocus>
-  <div class="error" id="err" style="display:none;">Wrong password.</div>
-  <button id="go">Log in</button>
+<div class="login-wrap">
+  <h1>Noise<br>Monitor</h1>
+  <div class="card">
+    <label for="pw">Password</label>
+    <input type="password" id="pw" autofocus>
+    <div class="error" id="err" style="display:none;">Wrong password.</div>
+    <button id="go" class="block">Log in</button>
+  </div>
 </div>
 <script>
 async function tryLogin() {
@@ -22,7 +25,7 @@ async function tryLogin() {
     body: JSON.stringify({ password })
   });
   if (res.ok) {
-    window.location.href = '/dashboard.html';
+    window.location.href = '/index.html';
   } else {
     document.getElementById('err').style.display = 'block';
   }
