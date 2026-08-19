@@ -83,6 +83,7 @@
   const SETTINGS_KEY = 'noiseMonitorSettings';
   const CLIP_HIGH_KEY = 'noiseMonitorClipHigh';
   const CLIP_LOW_KEY = 'noiseMonitorClipLow';
+  const DEFAULT_LOW_CLIP_URL = '/assets/quiet-default.mp3';
   const METER_MIN = 0, METER_MAX = 140;
 
   let settings = {
@@ -124,6 +125,9 @@
     if (savedLow) {
       lowClipStatusEl.textContent = 'Custom clip loaded.';
       lowAlertAudio = new Audio(savedLow);
+    } else {
+      lowClipStatusEl.textContent = 'Using default quiet-alert sound. Upload your own to replace it.';
+      lowAlertAudio = new Audio(DEFAULT_LOW_CLIP_URL);
     }
   }
 
